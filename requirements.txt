@@ -85,7 +85,6 @@ pandas==2.2.2
 pillow==10.3.0
 platformdirs==4.2.0
 pooch==1.8.1
-pri==1.0.5
 proglog==0.1.10
 protobuf==4.25.3
 psutil==5.9.8
