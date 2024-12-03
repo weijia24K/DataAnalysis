@@ -4,13 +4,12 @@ Author: Weijia Ju
 version: 
 Date: 2024-11-18 22:25:34
 LastEditors: Weijia Ju
-LastEditTime: 2024-12-02 20:34:49
+LastEditTime: 2024-12-03 09:05:30
 '''
 import streamlit as st
 import pandas as pd
 import Config as C
 import numpy as np
-import copy
 import math
 import matplotlib
 matplotlib.use('Agg')
