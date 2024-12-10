@@ -4,20 +4,30 @@ Author: Weijia Ju
 version: 
 Date: 2024-11-18 22:25:34
 LastEditors: Weijia Ju
-LastEditTime: 2024-12-03 09:05:30
+LastEditTime: 2024-12-10 12:36:15
 '''
 import streamlit as st
+import copy
 import pandas as pd
 import Config as C
 import numpy as np
 import math
 import matplotlib
 matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
 from mpl_toolkits.mplot3d import Axes3D
 from factor_analyzer.factor_analyzer import calculate_kmo, calculate_bartlett_sphericity
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.model_selection import train_test_split
+import sklearn.naive_bayes as nb
+import sklearn.svm as svm
+from sklearn.ensemble import RandomForestClassifier
+# from sklearn.ensemble import AdaBoostClassifier
+from sklearn.metrics import accuracy_score
 
 def mapsize(data, x, MIN, MAX, dim):
     '''
@@ -35,15 +45,13 @@ def mapsize(data, x, MIN, MAX, dim):
     else:
         return math.floor(MIN+k*(x-x_min))
 
-def draw_cluster(data, best_labels, best_center, fig):
+def draw_cluster(data, best_labels, best_center, fig, col):
     '''
     @ Description: 绘制聚类图
     @ data: 聚类数据
     @ best_labels: 最佳聚类标签
     @ best_center: 最佳聚类中心
     '''
-    from matplotlib.font_manager import FontProperties
-    import matplotlib.pyplot as plt
     font = FontProperties(fname=r"SimHei.ttf", size=10)
     dimension = len(data.columns)  # 维度
     if dimension == 1:
@@ -99,7 +107,7 @@ def draw_cluster(data, best_labels, best_center, fig):
         ax.set_ylabel(data.columns[1], fontproperties= font)
         ax.set_zlabel(data.columns[2], fontproperties= font)
     if dimension >= 6:
-        st.warning("维度大于等于6, 无法绘制聚类图")
+        col.warning("维度大于等于6, 无法绘制聚类图")
 
 def draw_index(x, y, cluster_index):
     '''
@@ -205,7 +213,7 @@ def clustering_analysis_k_means(pca_results):
                 plt.close(fig_index)
                 # 绘制聚类结果
                 fig_cluster = plt.figure()
-                draw_cluster(data, best_labels, best_center,fig_cluster)
+                draw_cluster(data, best_labels, best_center,fig_cluster,col)
                 col.pyplot(fig_cluster)
                 plt.close(fig_cluster)    
 # DBSCAN
@@ -274,7 +282,7 @@ def clustering_analysis_dbscan(pca_results):
                 best_centers.append([0]*len(data.columns))
                 best_centers = np.array(best_centers)
                 # 绘制聚类结果
-                draw_cluster(data, labels, best_centers, fig_cluster)
+                draw_cluster(data, labels, best_centers, fig_cluster,col)
                 col.pyplot(fig_cluster)
 
 def draw_loadings(x, y):
@@ -433,54 +441,197 @@ def displaytable(data):
     for grade in grades:
         for i, col in enumerate(rows):
             subject = subjects[i]
+            # subject_id = C.side_para[4][subject]
             col.header(f'{grade}{subject}课数据')
             temp_data = data[data["用户信息_学科"]==subject]
-            col.dataframe(temp_data.head(5))
             col.metric("课量", len(temp_data))
             temp_data = temp_data.drop("用户信息_学科", axis=1)
             results.append(temp_data)
+            col.dataframe(temp_data.head(3))
     return results
 
+def displayCorr(corr):
+    '''
+    @ Description: 展示相关系数矩阵
+    '''
+    font = FontProperties(fname=r"SimHei.ttf", size=10)
+    plt.imshow(corr)
+    plt.title("相关系数矩阵", fontproperties=font)
+    plt.title("相关性热力图", fontproperties=font)
+
+def selectfeature(data):
+    skb = SelectKBest(f_classif, k=len(data.columns)-1)
+    skb.fit(data, data['用户信息_学科'])
+    scores = np.log10(skb.scores_)
+    score_data = pd.DataFrame(scores, index=data.columns, columns=["score"])
+    score_data = score_data.sort_values(by='score', ascending=False)
+    # 去除值为空的列
+    # score_data = score_data[score_data['score'] > 0]
+    st.bar_chart(score_data)
+    return score_data
+
+def myClassifier(data, classifier, n_feature, threshold):
+    '''
+    @ Description: 分类器
+    '''
+    if classifier == "随机森林":
+        classifier = RandomForestClassifier(n_estimators=100, max_features=n_feature, random_state=0)
+    # elif classifier == "支持向量机":
+    #     classifier = svm.SVC(kernel='sigmoid', C=1)
+    # elif classifier == "K近邻":
+    #     classifier = KNeighborsClassifier(n_neighbors=3)
+    elif classifier == "朴素贝叶斯":
+        classifier = nb.GaussianNB()
+    X = data.drop("用户信息_学科", axis=1)
+    y = data["用户信息_学科"]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    classifier.fit(X_train, y_train)
+    predict = classifier.predict(X_test)
+    accuracy = accuracy_score(y_test, predict)
+    # 特征重要性
+    importances = classifier.feature_importances_
+    # 选择特征量大于某个阈值的特征
+    classify_data = pd.DataFrame(importances, index=X_train.columns, columns=["importance"])
+    selected_data = classify_data[classify_data['importance'] > threshold]
+    selected_feature = selected_data.index.tolist()
+    return accuracy, selected_feature, classify_data
+
 def getInfo():
-    # TODO: 上传文件
     '''
     @ Description: 获取数据
     @ results: 删除值为0的列后的表格数据
     '''
     with st.status("数据分析中...", expanded=True):
-        st.write("获取数据...")
-        file_path = "data/初中语数外数据.csv"
-        raw_data = pd.read_csv(file_path, encoding='gbk')
-        st.dataframe(raw_data.head(5))
-        st.metric("特征量", len(raw_data.columns.tolist()))
-        # for col in data.columns.tolist():
-        #     print(col)
-        # 对此data删除某一列的值全为0的列
-        # time.sleep(1)
-        st.write("去除特征量的值全为0的列...")
-        columns2del = []
-        for col in raw_data.columns.tolist():
-            # st.text(data[col].sum())
-            if raw_data[col].sum() == 0:
-                columns2del.append(col)
-        st.info("去除属性"+str(columns2del))
-        data = raw_data.drop(columns2del, axis=1)
-        st.dataframe(data.head(5))
-        st.metric("特征量", len(data.columns.tolist()), -int(len(columns2del)))
-        # time.sleep(1)
-        st.write("删除文本数据....")
-        columns2del.extend(['用户信息_学段', '课程信息_年级', '占比', '抬头率_', '参与度_', '活跃度_', '一致性_'])
-        st.info("去除属性"+str(columns2del))
-        for column in data.columns.tolist():
-            for col2del in columns2del:
-                if col2del in column:
-                    data = data.drop(column, axis=1)
-        st.dataframe(data.head(5))
-        st.metric("特征量", len(data.columns.tolist()), -int(len(columns2del)))
-        st.write("展示基本信息....")
-        # time.sleep(1)
-        results = displaytable(data)
-        return results
+        st.html("<h1 style='text-align: center'>----------------获    取    数    据---------------</h1>")
+        file = st.file_uploader("", type=["csv"])
+        if file is None:
+            st.warning("请先上传一个csv文件")
+        else:
+            feature_list = []  # 特征量列表
+            feature_delta_list = [] # 特征量变化列表
+            raw_data = pd.read_csv(file, encoding='gbk')
+            st.dataframe(raw_data.head(3))
+            # 初始特征量
+            feature_list.append(len(raw_data.columns.tolist()))
+            feature_delta_list.append(0)
+            columns2del = []
+            for col in raw_data.columns.tolist():
+                # st.text(data[col].sum())
+                if raw_data[col].sum() == 0:
+                    columns2del.append(col)
+            st.info("去除特征量的值全为0的列..."+str(columns2del))
+            data = raw_data.drop(columns2del, axis=1)
+            st.dataframe(data.head(3))
+            # 增加第二次特征量
+            feature_list.append(len(data.columns.tolist()))
+            feature_delta_list.append(-int(len(columns2del)))
+            columns2del.extend(['用户信息_学段', '课程信息_年级', '占比', '抬头率_', '参与度_', '活跃度_', '一致性_'])
+            st.info("删除文本数据...."+str(columns2del))
+            for column in data.columns.tolist():
+                for col2del in columns2del:
+                    if col2del in column:
+                        data = data.drop(column, axis=1)
+            st.dataframe(data.head(3))
+            # 增加第三次特征量
+            feature_list.append(len(data.columns.tolist()))
+            feature_delta_list.append(-int(len(columns2del)))
+            st.html("<h1 style='text-align: center'>------------对  语  数  外  打  标  签------------</h1>")
+            data.replace(C.side_para[4], inplace = True)
+            st.dataframe(data.head(3))
+            # 去除值为空的列
+            # feature_on = st.toggle("训练分类器以查看最佳特征数")
+            max_accuracy = 0
+            best_features = []
+            if "classify_data" not in st.session_state:
+                st.session_state["classify_data"] = []
+            if "max_accuracy" not in st.session_state:
+                st.session_state["max_accuracy"] = max_accuracy
+            if "accuracy_list" not in st.session_state:
+                st.session_state["accuracy_list"] = []
+            if "best_features" not in st.session_state:
+                st.session_state["best_features"] = best_features
+            # if feature_on:
+            threshold = st.slider("选择阈值", 0.0, 1.0, 0.25)
+            threshold = threshold / 10
+            st.html("<h1 style='text-align: center'>----------------训  练  分  类  器---------------</h1>")
+            if st.session_state["max_accuracy"] == 0:
+                my_bar = st.progress(0, "Classifying...")
+                classify = st.selectbox("选择分类器", ['随机森林','KNN', 'SVM', '决策树',  '朴素贝叶斯', '逻辑回归'])
+                accuracy_list = []
+                for i in range(5, 30):
+                    text = "Test " + str(i) + "th classify feature nums..."
+                    my_bar.progress(i/30, text)
+                    accuracy, features, selected_data = myClassifier(data, classify, i, threshold)
+                    accuracy_list.append(accuracy)
+                    if accuracy > max_accuracy:
+                        max_accuracy = accuracy
+                        best_features = features
+                        st.session_state["classify_data"] = selected_data
+                        st.session_state["max_accuracy"] = max_accuracy
+                        st.session_state["accuracy_list"] = accuracy_list
+                        st.session_state["best_features"] = best_features
+            # st.metric("最佳特征数量", n_feature)
+            max_accuracy = st.session_state["max_accuracy"]
+            accuracy_list = st.session_state["accuracy_list"]
+            best_features = st.session_state["best_features"]
+            selected_data = st.session_state["classify_data"]
+            st.metric("最佳准确率", max_accuracy)
+            st.bar_chart(accuracy_list)
+            st.html("<h1 style='text-align: center'>----------------选  择  特  征  拟  合---------------</h1>")
+            # 从分类器中选择合适的特征
+            selected_data = selected_data[selected_data['importance'] > threshold]
+            best_features = selected_data.index.tolist()
+            columns = set(data.columns)
+            data = data[best_features]
+            new_columns = set(data.columns)
+            columns2del.extend(list(columns-new_columns))
+            st.info("去除特征..."+str(columns2del))
+            # st.dataframe(data) # 根据阈值选择的特征
+            feature_list.append(len(data.columns.tolist()))
+            feature_delta_list.append(-int(len(columns2del)))
+            st.html("<h1 style='text-align: center'>----------------特  征  量  变  化  趋  势---------------</h1>")
+            st.bar_chart(feature_list)
+            st.html("<h1 style='text-align: center'>----------------展  示  基  本  信  息---------------</h1>")
+            # 从raw_data中向data增加用户信息_学科这一列数据
+            data = data.merge(raw_data[["用户信息_学科"]], left_index=True, right_index=True)
+            # st.dataframe(data)
+            results = displaytable(data)
+            return results
+            # score_data = selectfeature(data)
+            # columns2del.extend(score_data.index[n_feature+1:])
+            # st.info("去除特征..."+str(columns2del))
+            # data = data[col_remains]
+            # accuracy = myClassifier(data, classify, n_feature)
+            # st.metric("分类准确率", accuracy)
+            # 增加第四次特征量
+            
+            # st.dataframe(score_data)
+            # 相关性分析，去除高相关的特征
+            # corr_theta = st.slider("选择去除相关系数的阈值", 0.0, 1.0, 0.8)
+            # corr_data = copy.deepcopy(data) # 用于做相关性分析
+            # corr_data = corr_data.drop("用户信息_学科", axis=1)
+            # 去除方差非常小的特征
+            # var_thresh = VarianceThreshold(threshold=0.001)
+            # var_thresh.fit(corr_data)
+            # var_thresh.transform(corr_data)
+            # columns_remained = var_thresh.get_feature_names_out()
+            # columns_var_min = list(set(corr_data.columns)-set(columns_remained))
+            # columns2del.extend(columns_var_min)
+            # st.info(f'去除方差较小的特征...{columns_var_min}')
+            # 增加第四次特征量
+            # feature_list.append(len(corr_data.columns.tolist()))
+            # feature_delta_list.append(-int(len(columns2del)))
+            # corr_matric = corr_data.corr()
+            # st.dataframe(corr_matric)
+            # corr_on = st.toggle("是否展示热力图")
+            # if corr_on:
+            #     fig_corr = plt.figure()
+            #     displayCorr(corr_matric)
+            #     st.pyplot(fig_corr)
+            # 取出相关系数大于阈值的特征
+            # corr_matric = corr_matric[corr_matric > corr_theta]
+            # st.dataframe(corr_matric)
+            
 
 def main():
     st.title("平台使用方法")
@@ -488,7 +639,7 @@ def main():
     st.info("2. 用户可以选择进行因子分析，分析课程数据中的因子")
     st.info("3. 因子分析若无法使用，用户可以选择PCA分析")
     st.info("4. 降维后，可以使用聚类分析查看聚类效果")
-    page = st.sidebar.radio("选择分析类型",C.side_para[1]["names"])
+    page = st.sidebar.radio("分析步骤",C.side_para[1]["names"])
     results = getInfo()
     if "pca_results" not in st.session_state:
         st.session_state.pca_results = []

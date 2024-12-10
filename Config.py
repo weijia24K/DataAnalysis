@@ -4,8 +4,10 @@ Author: Weijia Ju
 version: 
 Date: 2024-11-18 23:21:53
 LastEditors: Weijia Ju
-LastEditTime: 2024-11-22 12:58:01
+LastEditTime: 2024-12-09 20:07:48
 '''
+
+
 side_para = {
     1:{
         "names":["基本信息","因子分析","PCA降维","聚类分析"]
@@ -17,5 +19,13 @@ side_para = {
     },
     3:{
         "clusters":["k-means", "DBSCAN"]
+    },
+    4:{
+        "语文": 1,
+        "数学": 2,
+        "英语": 3
+    },
+    5:{
+       "classifier":["SVM","KNN","Random Forest","Decision Tree","XGBoost"]
     }
 }
