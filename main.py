@@ -4,7 +4,7 @@ Author: Weijia Ju
 version: 
 Date: 2024-11-18 22:25:34
 LastEditors: Weijia Ju
-LastEditTime: 2024-12-12 09:42:02
+LastEditTime: 2024-12-12 09:53:21
 '''
 import streamlit as st
 import copy
@@ -694,7 +694,7 @@ def classifyclass(data, subjects):
     classifier = st.selectbox("选择分类器", C.side_para[5]["classifier"])
     temp_data = data[0]
     labels = st.multiselect("选择标签", temp_data.columns.tolist(), default=["ST分析_师生行为转换率"])
-    rows = st.columns(len(data))
+    rows = st.columns(len(subjects))
     grades = C.side_para[2]["grades"] # 年级
     for grade in grades:
         for i, col in enumerate(rows):
