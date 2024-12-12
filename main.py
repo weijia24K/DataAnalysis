@@ -4,7 +4,7 @@ Author: Weijia Ju
 version: 
 Date: 2024-11-18 22:25:34
 LastEditors: Weijia Ju
-LastEditTime: 2024-12-12 09:29:08
+LastEditTime: 2024-12-12 09:37:56
 '''
 import streamlit as st
 import copy
@@ -690,6 +690,7 @@ def getInfo(subjects):
 
 def classifyclass(data, subjects):
     st.info("选择分类器")
+    st.info("如何定义分类器的y标签?")
     classifier = st.selectbox("选择分类器", C.side_para[5]["classifier"])
     temp_data = data[0]
     labels = st.multiselect("选择标签", temp_data.columns.tolist(), default=["ST分析_师生行为转换率"])
@@ -702,14 +703,15 @@ def classifyclass(data, subjects):
             temp_data = data[i]
             X = temp_data.drop(labels, axis=1)
             Y = temp_data[labels]
-            x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
-            if classifier == "随机森林":
-                clf = RandomForestClassifier(n_estimators=100, random_state=42)
-                clf.fit(x_train, y_train)
-                y_pred = clf.predict(x_test)
-                accuracy = accuracy_score(y_test, y_pred)
-                st.metric("分类准确率", accuracy)
-                
+            col.dataframe(Y)
+            # x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+            # if classifier == "随机森林":
+            #     clf = RandomForestClassifier(n_estimators=100, random_state=42)
+            #     clf.fit(x_train, y_train)
+            #     y_pred = clf.predict(x_test)
+            #     accuracy = accuracy_score(y_test, y_pred)
+            #     st.metric("分类准确率", accuracy)
+
 
 def main():
     st.title("平台使用方法")
