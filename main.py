@@ -4,7 +4,7 @@ Author: Weijia Ju
 version: 
 Date: 2024-11-18 22:25:34
 LastEditors: Weijia Ju
-LastEditTime: 2024-12-12 09:37:56
+LastEditTime: 2024-12-12 09:42:02
 '''
 import streamlit as st
 import copy
@@ -550,7 +550,7 @@ def getInfo(subjects):
     '''
     with st.status("数据分析中...", expanded=True):
         st.html("<h1 style='text-align: center'>----------------获    取    数    据---------------</h1>")
-        file = st.file_uploader("", type=["csv"])
+        file = st.file_uploader("",type=["csv"])
         if file is None:
             st.warning("请先上传一个csv文件")
         else:
