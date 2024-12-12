@@ -4,7 +4,7 @@ Author: Weijia Ju
 version: 
 Date: 2024-11-18 22:25:34
 LastEditors: Weijia Ju
-LastEditTime: 2024-12-12 09:53:21
+LastEditTime: 2024-12-12 10:00:49
 '''
 import streamlit as st
 import copy
@@ -550,135 +550,135 @@ def getInfo(subjects):
     '''
     with st.status("数据分析中...", expanded=True):
         st.html("<h1 style='text-align: center'>----------------获    取    数    据---------------</h1>")
-        file = st.file_uploader("",type=["csv"])
-        if file is None:
-            st.warning("请先上传一个csv文件")
-        else:
-            feature_list = []  # 特征量列表
-            feature_delta_list = [] # 特征量变化列表
-            raw_data = pd.read_csv(file, encoding='gbk')
-            st.dataframe(raw_data.head(3))
-            # 初始特征量
-            feature_list.append(len(raw_data.columns.tolist()))
-            feature_delta_list.append(0)
-            columns2del = []
-            for col in raw_data.columns.tolist():
-                # st.text(data[col].sum())
-                if raw_data[col].sum() == 0:
-                    columns2del.append(col)
-            st.info("去除特征量的值全为0的列..."+str(columns2del))
-            data = raw_data.drop(columns2del, axis=1)
-            st.dataframe(data.head(3))
-            # 增加第二次特征量
-            feature_list.append(len(data.columns.tolist()))
+        is_file_up = st.toggle("是否上传文件")
+        if is_file_up:
+            file = st.file_uploader("",type=["csv"])
+        file = "data/初中语数外数据.csv"
+        feature_list = []  # 特征量列表
+        feature_delta_list = [] # 特征量变化列表
+        raw_data = pd.read_csv(file, encoding='gbk')
+        st.dataframe(raw_data.head(3))
+        # 初始特征量
+        feature_list.append(len(raw_data.columns.tolist()))
+        feature_delta_list.append(0)
+        columns2del = []
+        for col in raw_data.columns.tolist():
+            # st.text(data[col].sum())
+            if raw_data[col].sum() == 0:
+                columns2del.append(col)
+        st.info("去除特征量的值全为0的列..."+str(columns2del))
+        data = raw_data.drop(columns2del, axis=1)
+        st.dataframe(data.head(3))
+        # 增加第二次特征量
+        feature_list.append(len(data.columns.tolist()))
+        feature_delta_list.append(-int(len(columns2del)))
+        columns2del.extend(['用户信息_学段', '课程信息_年级', '占比', '抬头率_', '参与度_', '活跃度_', '一致性_'])
+        st.info("删除文本数据...."+str(columns2del))
+        for column in data.columns.tolist():
+            for col2del in columns2del:
+                if col2del in column:
+                    data = data.drop(column, axis=1)
+        st.dataframe(data.head(3))
+        # 增加第三次特征量
+        feature_list.append(len(data.columns.tolist()))
+        feature_delta_list.append(-int(len(columns2del)))
+        corr_on = st.toggle("相关性分析")
+        if corr_on:
+            # 相关性分析，去除高相关的特征
+            corr_theta = st.slider("选择去除相关系数的阈值", 0.0, 1.0, 0.8)
+            corr_data = copy.deepcopy(data) # 用于做相关性分析
+            corr_data = corr_data.drop("用户信息_学科", axis=1)
+            # 去除方差非常小的特征
+            var_thresh = VarianceThreshold(threshold=0.001)
+            var_thresh.fit(corr_data)
+            var_thresh.transform(corr_data)
+            columns_remained = var_thresh.get_feature_names_out()
+            columns_var_min = list(set(corr_data.columns)-set(columns_remained))
+            columns2del.extend(columns_var_min)
+            st.info(f'去除方差较小的特征...{columns_var_min}')
+            # 增加第四次特征量
+            feature_list.append(len(corr_data.columns.tolist()))
             feature_delta_list.append(-int(len(columns2del)))
-            columns2del.extend(['用户信息_学段', '课程信息_年级', '占比', '抬头率_', '参与度_', '活跃度_', '一致性_'])
-            st.info("删除文本数据...."+str(columns2del))
-            for column in data.columns.tolist():
-                for col2del in columns2del:
-                    if col2del in column:
-                        data = data.drop(column, axis=1)
-            st.dataframe(data.head(3))
-            # 增加第三次特征量
-            feature_list.append(len(data.columns.tolist()))
-            feature_delta_list.append(-int(len(columns2del)))
-            corr_on = st.toggle("相关性分析")
+            corr_matric = corr_data.corr()
+            st.dataframe(corr_matric)
+            corr_on = st.toggle("是否展示热力图")
             if corr_on:
-                # 相关性分析，去除高相关的特征
-                corr_theta = st.slider("选择去除相关系数的阈值", 0.0, 1.0, 0.8)
-                corr_data = copy.deepcopy(data) # 用于做相关性分析
-                corr_data = corr_data.drop("用户信息_学科", axis=1)
-                # 去除方差非常小的特征
-                var_thresh = VarianceThreshold(threshold=0.001)
-                var_thresh.fit(corr_data)
-                var_thresh.transform(corr_data)
-                columns_remained = var_thresh.get_feature_names_out()
-                columns_var_min = list(set(corr_data.columns)-set(columns_remained))
-                columns2del.extend(columns_var_min)
-                st.info(f'去除方差较小的特征...{columns_var_min}')
-                # 增加第四次特征量
-                feature_list.append(len(corr_data.columns.tolist()))
-                feature_delta_list.append(-int(len(columns2del)))
-                corr_matric = corr_data.corr()
-                st.dataframe(corr_matric)
-                corr_on = st.toggle("是否展示热力图")
-                if corr_on:
-                    fig_corr = plt.figure()
-                    displayCorr(corr_matric)
-                    st.pyplot(fig_corr)
-                # 取出相关系数大于阈值的特征
-                corr_matric = corr_matric[corr_matric > corr_theta]
-                st.dataframe(corr_matric)
-                columns2del.extend(corr_matric.columns.tolist())
-            classify_on = st.toggle("训练学科分类器")
-            if classify_on:
-                st.html("<h1 style='text-align: center'>------------对  语  数  外  打  标  签------------</h1>")
-                data.replace(C.side_para[4], inplace = True)
-                st.dataframe(data.head(3))
-                # 去除值为空的列
-                # feature_on = st.toggle("训练分类器以查看最佳特征数")
-                max_accuracy = 0
-                best_features = []
-                if "classify_data" not in st.session_state: # 经过分类筛选后的特征维度及其重要性
-                    st.session_state["classify_data"] = []
-                if "max_accuracy" not in st.session_state:
-                    st.session_state["max_accuracy"] = max_accuracy
-                if "accuracy_list" not in st.session_state:
-                    st.session_state["accuracy_list"] = []
-                # if feature_on:
-                threshold = st.slider("选择阈值", 0.0, 1.0, 0.25)
-                threshold = threshold / 10
-                st.html("<h1 style='text-align: center'>----------------训  练  分  类  器---------------</h1>")
-                if st.session_state["max_accuracy"] == 0:
-                    my_bar = st.progress(0, "Classifying...")
-                    classify = st.selectbox("选择分类器", C.side_para[5]["classifier"])
-                    accuracy_list = []
-                    for i in range(5, 30):
-                        text = "Test " + str(i) + "th classify feature nums..."
-                        my_bar.progress(i/30, text)
-                        accuracy, selected_data = myClassifier(data, classify, i, threshold)
-                        accuracy_list.append(accuracy)
-                        if accuracy > max_accuracy:
-                            max_accuracy = accuracy
-                            st.session_state["classify_data"] = selected_data
-                            st.session_state["max_accuracy"] = max_accuracy
-                            st.session_state["accuracy_list"] = accuracy_list
-                # st.metric("最佳特征数量", n_feature)
-                max_accuracy = st.session_state["max_accuracy"]
-                accuracy_list = st.session_state["accuracy_list"]
-                selected_data = st.session_state["classify_data"]
-                st.info("最佳训练分类器的特征")
-                best_feature_on = st.toggle("展示最佳特征")
-                if best_feature_on:
-                    # 降序排序
-                    selected_data_display = selected_data.sort_values(by='importance', ascending=False)
-                    st.table(selected_data_display)
-                    # st.json(selected_data.to_dict())
-                st.metric("最佳准确率", max_accuracy)
-                st.bar_chart(accuracy_list)
-                st.html("<h1 style='text-align: center'>----------------选  择  特  征  拟  合---------------</h1>")
-                # 从分类器中选择合适的特征
-                selected_data = selected_data[selected_data['importance'] > threshold]
-                best_features = selected_data.index.tolist()
-                columns = set(data.columns)
-                data = data[best_features]
-                new_columns = set(data.columns)
-                columns2del.extend(list(columns-new_columns))
-                st.info("去除特征..."+str(columns2del))
-                # st.dataframe(data) # 根据阈值选择的特征
-                feature_list.append(len(data.columns.tolist()))
-                feature_delta_list.append(-int(len(columns2del)))
-                 # 从raw_data中向data增加用户信息_学科这一列数据
-                data = data.merge(raw_data[["用户信息_学科"]], left_index=True, right_index=True)
-            st.html("<h1 style='text-align: center'>----------------特  征  量  变  化  趋  势---------------</h1>")
-            st.bar_chart(feature_list)
-            # st.dataframe(data)
-            if subjects == []:
-                st.warning("请先选择课程")
-            else:
-                st.html("<h1 style='text-align: center'>----------------展  示  基  本  信  息---------------</h1>")
-                results = displaytable(data, subjects)
-                return results
+                fig_corr = plt.figure()
+                displayCorr(corr_matric)
+                st.pyplot(fig_corr)
+            # 取出相关系数大于阈值的特征
+            corr_matric = corr_matric[corr_matric > corr_theta]
+            st.dataframe(corr_matric)
+            columns2del.extend(corr_matric.columns.tolist())
+        classify_on = st.toggle("训练学科分类器")
+        if classify_on:
+            st.html("<h1 style='text-align: center'>------------对  语  数  外  打  标  签------------</h1>")
+            data.replace(C.side_para[4], inplace = True)
+            st.dataframe(data.head(3))
+            # 去除值为空的列
+            # feature_on = st.toggle("训练分类器以查看最佳特征数")
+            max_accuracy = 0
+            best_features = []
+            if "classify_data" not in st.session_state: # 经过分类筛选后的特征维度及其重要性
+                st.session_state["classify_data"] = []
+            if "max_accuracy" not in st.session_state:
+                st.session_state["max_accuracy"] = max_accuracy
+            if "accuracy_list" not in st.session_state:
+                st.session_state["accuracy_list"] = []
+            # if feature_on:
+            threshold = st.slider("选择阈值", 0.0, 1.0, 0.25)
+            threshold = threshold / 10
+            st.html("<h1 style='text-align: center'>----------------训  练  分  类  器---------------</h1>")
+            if st.session_state["max_accuracy"] == 0:
+                my_bar = st.progress(0, "Classifying...")
+                classify = st.selectbox("选择分类器", C.side_para[5]["classifier"])
+                accuracy_list = []
+                for i in range(5, 30):
+                    text = "Test " + str(i) + "th classify feature nums..."
+                    my_bar.progress(i/30, text)
+                    accuracy, selected_data = myClassifier(data, classify, i, threshold)
+                    accuracy_list.append(accuracy)
+                    if accuracy > max_accuracy:
+                        max_accuracy = accuracy
+                        st.session_state["classify_data"] = selected_data
+                        st.session_state["max_accuracy"] = max_accuracy
+                        st.session_state["accuracy_list"] = accuracy_list
+            # st.metric("最佳特征数量", n_feature)
+            max_accuracy = st.session_state["max_accuracy"]
+            accuracy_list = st.session_state["accuracy_list"]
+            selected_data = st.session_state["classify_data"]
+            st.info("最佳训练分类器的特征")
+            best_feature_on = st.toggle("展示最佳特征")
+            if best_feature_on:
+                # 降序排序
+                selected_data_display = selected_data.sort_values(by='importance', ascending=False)
+                st.table(selected_data_display)
+                # st.json(selected_data.to_dict())
+            st.metric("最佳准确率", max_accuracy)
+            st.bar_chart(accuracy_list)
+            st.html("<h1 style='text-align: center'>----------------选  择  特  征  拟  合---------------</h1>")
+            # 从分类器中选择合适的特征
+            selected_data = selected_data[selected_data['importance'] > threshold]
+            best_features = selected_data.index.tolist()
+            columns = set(data.columns)
+            data = data[best_features]
+            new_columns = set(data.columns)
+            columns2del.extend(list(columns-new_columns))
+            st.info("去除特征..."+str(columns2del))
+            # st.dataframe(data) # 根据阈值选择的特征
+            feature_list.append(len(data.columns.tolist()))
+            feature_delta_list.append(-int(len(columns2del)))
+                # 从raw_data中向data增加用户信息_学科这一列数据
+            data = data.merge(raw_data[["用户信息_学科"]], left_index=True, right_index=True)
+        st.html("<h1 style='text-align: center'>----------------特  征  量  变  化  趋  势---------------</h1>")
+        st.bar_chart(feature_list)
+        # st.dataframe(data)
+        if subjects == []:
+            st.warning("请先选择课程")
+        else:
+            st.html("<h1 style='text-align: center'>----------------展  示  基  本  信  息---------------</h1>")
+            results = displaytable(data, subjects)
+            return results
             # score_data = selectfeature(data)
             # columns2del.extend(score_data.index[n_feature+1:])
             # st.info("去除特征..."+str(columns2del))
